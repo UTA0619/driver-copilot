@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { capture, identify } from '@/lib/analytics';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -33,9 +34,23 @@ export default function SignupScreen() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ email, password });
     setLoading(false);
-    if (error) Alert.alert('Sign up failed', error.message);
+    if (error) {
+      Alert.alert('Sign up failed', error.message);
+      return;
+    }
+    if (data.user) {
+      identify(data.user.id, { email: data.user.email });
+      capture('user_signed_up', { auth_method: 'email' });
+      // Create initial user profile row
+      await supabase.from('user_profiles').upsert({
+        id: data.user.id,
+        email: data.user.email ?? '',
+        platforms: [],
+        is_pro: false,
+      });
+    }
   };
 
   return (
