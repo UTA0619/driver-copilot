@@ -1,0 +1,96 @@
+name: Feature
+description: New user-facing capability or improvement
+title: "[Feature] "
+labels: ["type:feature", "status:needs-grooming"]
+body:
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - "P0 — Blocks ship"
+        - "P1 — Must land this milestone"
+        - "P2 — Should land this milestone"
+        - "P3 — Nice to have"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Mobile
+        - Backend
+        - AI/ML
+        - Data
+        - Analytics
+        - Billing
+        - DevOps
+        - Growth
+        - Legal
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Estimated Size
+      options:
+        - "XS — under 2 hours"
+        - "S — half day"
+        - "M — 1-2 days"
+        - "L — 3+ days (split this)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What needs to be built and why. 2-3 sentences max.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Bullet list of exactly what is in scope.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Testable checkboxes. Each one verifiable by a human.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      placeholder: "Depends on #12, #15"
+
+  - type: textarea
+    id: analytics
+    attributes:
+      label: Analytics Events
+      description: PostHog events to fire as a result of this feature.
+      placeholder: |
+        - `event_name` — when X happens, properties: Y, Z
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Risks, design constraints, or links. Skip if none.

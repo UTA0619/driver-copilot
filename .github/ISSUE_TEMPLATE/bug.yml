@@ -1,0 +1,71 @@
+name: Bug Report
+description: Something is broken
+title: "[Bug] "
+labels: ["type:bug"]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - "P0 — Crash or data loss"
+        - "P1 — Core flow broken"
+        - "P2 — Feature partially broken"
+        - "P3 — Visual or minor"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - iOS
+        - Android
+        - Both
+        - Web
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open app
+        2. Tap ...
+        3. See error
+    validations:
+      required: true
+
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      placeholder: "e.g. 0.1.0-beta.3"
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS
+      placeholder: "e.g. iPhone 14 Pro, iOS 17.2"
+
+  - type: textarea
+    id: sentry
+    attributes:
+      label: Sentry error link
+      placeholder: "https://sentry.io/..."
