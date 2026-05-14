@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,20 @@ import {
   Alert,
 } from 'react-native';
 import { Link } from 'expo-router';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { supabase } from '@/lib/supabase';
+import { isAppleSignInAvailable, signInWithApple } from '@/lib/appleAuth';
+import { capture } from '@/lib/analytics';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    isAppleSignInAvailable().then(setAppleAvailable);
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -27,6 +35,13 @@ export default function LoginScreen() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) Alert.alert('Login failed', error.message);
+  };
+
+  const handleAppleSignIn = async () => {
+    const result = await signInWithApple();
+    if (result.success === false && result.error !== 'cancelled') {
+      Alert.alert('Sign in failed', result.message ?? 'Please try again.');
+    }
   };
 
   return (
@@ -70,6 +85,17 @@ export default function LoginScreen() {
           )}
         </TouchableOpacity>
 
+        {/* Sign in with Apple — iOS only, shown when available */}
+        {appleAvailable && (
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE}
+            cornerRadius={12}
+            style={styles.appleButton}
+            onPress={handleAppleSignIn}
+          />
+        )}
+
         <Link href="/(auth)/signup" style={styles.link}>
           Don't have an account? Sign up
         </Link>
@@ -79,10 +105,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-  },
+  container: { flex: 1, backgroundColor: '#0f172a' },
   inner: {
     flex: 1,
     justifyContent: 'center',
@@ -118,13 +141,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  appleButton: {
+    width: '100%',
+    height: 50,
+    marginTop: 4,
   },
   link: {
     color: '#94a3b8',
