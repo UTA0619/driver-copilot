@@ -1,12 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Linking from 'expo-linking';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { initSentry } from '@/lib/sentry';
 import { initPostHog, capture } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,      // 1 minute
+      gcTime: 5 * 60_000,     // 5 minutes
+      retry: 2,
+      retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    },
+  },
+});
 
 // Initialize crash monitoring and analytics synchronously at startup.
 // Both are no-ops in development if keys are not set.
@@ -20,6 +33,32 @@ function RootLayoutNav() {
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [profileError, setProfileError] = useState(false);
   const hasCapturedOpen = useRef(false);
+  const router = useRouter();
+
+  // Handle deep links for password reset
+  useEffect(() => {
+    const handleUrl = (event: { url: string }) => {
+      const parsed = Linking.parse(event.url);
+      if (parsed.hostname === 'reset-password' || parsed.path === 'reset-password') {
+        const accessToken = parsed.queryParams?.access_token as string | undefined;
+        const refreshToken = parsed.queryParams?.refresh_token as string | undefined;
+        if (accessToken && refreshToken) {
+          supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+            .then(() => router.push('/(auth)/reset-password'))
+            .catch(console.error);
+        }
+      }
+    };
+
+    const sub = Linking.addEventListener('url', handleUrl);
+
+    // Handle cold start deep link
+    Linking.getInitialURL().then(url => {
+      if (url) handleUrl({ url });
+    }).catch(console.error);
+
+    return () => sub.remove();
+  }, [router]);
 
   // Capture app_opened once per JS bundle lifecycle
   useEffect(() => {
@@ -98,10 +137,12 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <RootLayoutNav />
-      </AuthProvider>
-    </ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <RootLayoutNav />
+        </AuthProvider>
+      </ErrorBoundary>
+    </QueryClientProvider>
   );
 }

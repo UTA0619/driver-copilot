@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 import { capture } from '@/lib/analytics';
 import { captureError } from '@/lib/sentry';
@@ -76,6 +77,18 @@ export default function OnboardingScreen() {
         city: city || 'Unknown',
         notifications_enabled: notificationsGranted,
       });
+
+      // Save push token to user_profiles
+      const { data: tokenData } = await Notifications.getExpoPushTokenAsync({
+        projectId: Constants.expoConfig?.extra?.eas?.projectId,
+      }).catch(() => ({ data: null }));
+
+      if (tokenData) {
+        await supabase
+          .from('user_profiles')
+          .update({ push_token: tokenData })
+          .eq('id', user.id);
+      }
 
       router.replace('/(tabs)');
     } catch (err) {

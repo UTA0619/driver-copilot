@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { capture } from '@/lib/analytics';
 import { captureError } from '@/lib/sentry';
+import { hapticMedium, hapticSuccess } from '@/lib/haptics';
 import { SkeletonCard, SkeletonRow } from '@/components/SkeletonCard';
 import type { Delivery, EarningsPeriod, DeliveryPlatform } from '@drivercopilot/types';
 
@@ -68,6 +69,14 @@ const PLATFORMS: { key: DeliveryPlatform; label: string; color: string }[] = [
   { key: 'instacart', label: 'Instacart', color: '#22c55e' },
 ];
 
+// ── Helpers ────────────────────────────────────────────────────
+
+function formatTimer(seconds: number): string {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
 // ── Main Screen ────────────────────────────────────────────────
 
 export default function EarningsScreen() {
@@ -76,6 +85,35 @@ export default function EarningsScreen() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [showLogModal, setShowLogModal] = useState(false);
+  const [durationPrefill, setDurationPrefill] = useState('');
+
+  // Delivery timer
+  const [timerStart, setTimerStart] = useState<Date | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startTimer = useCallback(() => {
+    const start = new Date();
+    setTimerStart(start);
+    setTimerSeconds(0);
+    timerRef.current = setInterval(() => {
+      setTimerSeconds(Math.floor((Date.now() - start.getTime()) / 1000));
+    }, 1000);
+    hapticMedium();
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+    const minutes = Math.round(timerSeconds / 60);
+    setTimerStart(null);
+    setTimerSeconds(0);
+    setDurationPrefill(String(minutes || 1));
+    setShowLogModal(true);
+    hapticSuccess();
+  }, [timerSeconds]);
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   const fetchDeliveries = useCallback(async () => {
     if (!user) return;
@@ -217,12 +255,26 @@ export default function EarningsScreen() {
         )}
       </ScrollView>
 
+      {/* Timer button */}
+      <TouchableOpacity
+        style={[styles.timerBtn, timerStart && styles.timerBtnActive]}
+        onPress={timerStart ? stopTimer : startTimer}
+        accessibilityRole="button"
+        accessibilityLabel={timerStart ? 'Stop delivery timer' : 'Start delivery timer'}
+      >
+        <Ionicons name={timerStart ? 'stop-circle' : 'timer-outline'} size={22} color={timerStart ? '#ef4444' : '#94a3b8'} />
+        <Text style={[styles.timerBtnText, timerStart && styles.timerBtnTextActive]}>
+          {timerStart ? formatTimer(timerSeconds) : 'Start Timer'}
+        </Text>
+      </TouchableOpacity>
+
       {/* Log delivery modal */}
       <LogDeliveryModal
         visible={showLogModal}
-        onClose={() => setShowLogModal(false)}
-        onSaved={() => { setShowLogModal(false); fetchDeliveries(); }}
+        onClose={() => { setShowLogModal(false); setDurationPrefill(''); }}
+        onSaved={() => { setShowLogModal(false); setDurationPrefill(''); fetchDeliveries(); }}
         userId={user?.id ?? ''}
+        durationDefault={durationPrefill}
       />
     </SafeAreaView>
   );
@@ -261,14 +313,20 @@ interface LogModalProps {
   onClose: () => void;
   onSaved: () => void;
   userId: string;
+  durationDefault?: string;
 }
 
-function LogDeliveryModal({ visible, onClose, onSaved, userId }: LogModalProps) {
+function LogDeliveryModal({ visible, onClose, onSaved, userId, durationDefault = '' }: LogModalProps) {
   const [platform, setPlatform] = useState<DeliveryPlatform>('uber_eats');
   const [payout, setPayout] = useState('');
   const [tip, setTip] = useState('');
   const [distance, setDistance] = useState('');
-  const [duration, setDuration] = useState('');
+  const [duration, setDuration] = useState(durationDefault);
+
+  // Sync duration when durationDefault changes (e.g. timer stopped)
+  useEffect(() => {
+    setDuration(durationDefault);
+  }, [durationDefault]);
   const [saving, setSaving] = useState(false);
 
   const handleSave = useCallback(async () => {
@@ -461,4 +519,9 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: '#3b82f6', borderRadius: 14, padding: 18, alignItems: 'center', marginTop: 28, marginBottom: 32 },
   saveBtnDisabled: { opacity: 0.5 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  timerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#1e293b', borderRadius: 16, padding: 16, marginTop: 12, marginBottom: 8, borderWidth: 1, borderColor: '#334155' },
+  timerBtnActive: { borderColor: '#ef4444', backgroundColor: '#450a0a' },
+  timerBtnText: { fontSize: 16, fontWeight: '700', color: '#64748b' },
+  timerBtnTextActive: { color: '#ef4444' },
 });

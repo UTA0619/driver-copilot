@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,15 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useOfferCapture } from '@/hooks/useOfferCapture';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
+import { capture } from '@/lib/analytics';
+import { hapticSuccess, hapticLight } from '@/lib/haptics';
 import type { OfferDecision } from '@drivercopilot/types';
 
 // ── Platform options (single source of truth) ─────────────────
@@ -145,12 +150,31 @@ function ResultView({
   const cfg = REC_CONFIG[decision.recommendation];
   const { parsedOffer } = decision;
 
+  const slideAnim = useRef(new Animated.Value(60)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: cfg.bg }]}
       edges={['top']}
       accessibilityLabel={`Recommendation: ${cfg.label}`}
     >
+      <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -192,6 +216,9 @@ function ResultView({
           ))}
         </View>
 
+        {/* Offer feedback */}
+        <OfferFeedback decision={decision} />
+
         {/* Confidence + parse time */}
         <Text style={styles.meta}>
           Confidence: {decision.confidence} · Analyzed in {(latencyMs / 1000).toFixed(1)}s
@@ -208,9 +235,88 @@ function ResultView({
           <Text style={styles.analyzeAnotherText}>Analyze Another Offer</Text>
         </TouchableOpacity>
       </ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 }
+
+// ── Offer Feedback ────────────────────────────────────────────
+
+function OfferFeedback({ decision }: { decision: OfferDecision }) {
+  const { user } = useAuth();
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleFeedback = useCallback(async (accepted: boolean) => {
+    if (!user || submitted) return;
+    setSubmitting(true);
+
+    const { error } = await supabase.from('deliveries').insert({
+      user_id: user.id,
+      platform: decision.parsedOffer.platform,
+      payout: decision.parsedOffer.payout,
+      tip: 0,
+      distance_miles: decision.parsedOffer.distanceMiles,
+      duration_minutes: decision.parsedOffer.estimatedMinutes,
+      started_at: new Date().toISOString(),
+      ended_at: new Date().toISOString(),
+      accepted_recommendation: accepted,
+    });
+
+    setSubmitting(false);
+    if (!error) {
+      setSubmitted(true);
+      capture('offer_feedback_submitted', { accepted, recommendation: decision.recommendation });
+      if (accepted) hapticSuccess(); else hapticLight();
+    }
+  }, [user, decision, submitted]);
+
+  if (submitted) {
+    return (
+      <View style={feedbackStyles.container}>
+        <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
+        <Text style={feedbackStyles.submitted}>Logged! Keep up the great work.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={feedbackStyles.container}>
+      <Text style={feedbackStyles.question}>Did you take this offer?</Text>
+      <View style={feedbackStyles.buttons}>
+        <TouchableOpacity
+          style={[feedbackStyles.btn, feedbackStyles.btnYes]}
+          onPress={() => handleFeedback(true)}
+          disabled={submitting}
+          accessibilityRole="button"
+          accessibilityLabel="Yes, I took this offer"
+        >
+          <Text style={feedbackStyles.btnText}>✓ Yes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[feedbackStyles.btn, feedbackStyles.btnNo]}
+          onPress={() => handleFeedback(false)}
+          disabled={submitting}
+          accessibilityRole="button"
+          accessibilityLabel="No, I skipped this offer"
+        >
+          <Text style={feedbackStyles.btnText}>✗ No</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const feedbackStyles = StyleSheet.create({
+  container: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 16, padding: 20, marginBottom: 12, alignItems: 'center', gap: 12 },
+  question: { fontSize: 15, color: '#94a3b8', fontWeight: '600' },
+  buttons: { flexDirection: 'row', gap: 12 },
+  btn: { flex: 1, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, alignItems: 'center' },
+  btnYes: { backgroundColor: '#052e16', borderWidth: 1, borderColor: '#22c55e' },
+  btnNo: { backgroundColor: '#450a0a', borderWidth: 1, borderColor: '#ef4444' },
+  btnText: { fontSize: 15, fontWeight: '700', color: '#f8fafc' },
+  submitted: { fontSize: 14, color: '#22c55e', fontWeight: '600' },
+});
 
 // ── Detail row sub-component ──────────────────────────────────
 

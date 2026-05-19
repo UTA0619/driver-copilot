@@ -2,8 +2,10 @@
   "name": "@drivercopilot/config",
   "version": "0.0.1",
   "private": true,
-  "main": "./index.js",
+  "main": "./index.ts",
   "exports": {
+    ".": "./index.ts",
+    "./theme": "./theme.ts",
     "./eslint": "./eslint-preset.js",
     "./prettier": "./prettier.js",
     "./typescript": "./typescript.json"
