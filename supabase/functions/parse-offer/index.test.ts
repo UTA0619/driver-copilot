@@ -1,153 +1,147 @@
 /**
- * Unit tests for parse-offer Edge Function logic
+ * Unit tests for parse-offer Edge Function — decision engine
  * Run: deno test supabase/functions/parse-offer/index.test.ts
  */
 
-import { assertEquals, assertAlmostEquals } from "https://deno.land/std@0.168.0/testing/asserts.ts";
+import {
+  assertEquals,
+  assertAlmostEquals,
+  assertStringIncludes,
+} from 'https://deno.land/std@0.208.0/assert/mod.ts';
+import { decideOffer } from './index.ts';
 
-// ── inline the decision logic for isolated testing ──────────────
+// ── Test fixture ──────────────────────────────────────────────
 
-type Recommendation = "accept" | "decline" | "conditional";
+const RAW_OFFER = {
+  payoutRaw: '$10.00',
+  distanceRaw: '3.0 mi',
+  estimatedTimeRaw: '25 min',
+  storeNameRaw: "McDonald's",
+  itemsRaw: null,
+  platformRaw: 'Uber Eats',
+};
 
-interface ParsedOffer {
-  payout: number;
-  distanceMiles: number;
-  estimatedMinutes: number;
-  storeName: string | null;
-  items: string[];
-  platform: string;
-  confidenceScore: number;
-}
-
-interface OfferDecision {
-  recommendation: Recommendation;
-  effectiveHourlyRate: number;
-  confidence: "high" | "medium" | "low";
-  reasoning: string[];
-}
-
-const ACCEPT_THRESHOLD = 18;
-const DECLINE_THRESHOLD = 12;
-
-function decideOffer(offer: ParsedOffer): OfferDecision {
-  const reasoning: string[] = [];
-  let recommendation: Recommendation;
-  let confidence: "high" | "medium" | "low";
-
-  const effectiveHourlyRate =
-    offer.estimatedMinutes > 0
-      ? (offer.payout / offer.estimatedMinutes) * 60
-      : 0;
-
-  if (effectiveHourlyRate >= ACCEPT_THRESHOLD) {
-    recommendation = "accept";
-    reasoning.push(`Strong hourly rate: $${effectiveHourlyRate.toFixed(2)}/hr`);
-  } else if (effectiveHourlyRate <= DECLINE_THRESHOLD) {
-    recommendation = "decline";
-    reasoning.push(`Low hourly rate: $${effectiveHourlyRate.toFixed(2)}/hr`);
-  } else {
-    recommendation = "conditional";
-    reasoning.push(`Marginal rate: $${effectiveHourlyRate.toFixed(2)}/hr`);
-  }
-
-  if (offer.distanceMiles > 8 && offer.payout < 8) {
-    recommendation = "decline";
-    reasoning.push(`Long distance (${offer.distanceMiles}mi) with low payout ($${offer.payout})`);
-  }
-
-  if (offer.payout < 5) {
-    if (recommendation === "accept") recommendation = "conditional";
-    reasoning.push(`Small payout ($${offer.payout}) — low tip potential`);
-  }
-
-  if (offer.confidenceScore >= 0.9) confidence = "high";
-  else if (offer.confidenceScore >= 0.6) confidence = "medium";
-  else {
-    confidence = "low";
-    reasoning.push("Some offer details were unclear — verify manually");
-  }
-
-  return {
-    recommendation,
-    effectiveHourlyRate: Math.round(effectiveHourlyRate * 100) / 100,
-    confidence,
-    reasoning,
-  };
-}
-
-// ── tests ────────────────────────────────────────────────────────
-
-const baseOffer = (overrides: Partial<ParsedOffer>): ParsedOffer => ({
+const base = (overrides: {
+  payout?: number;
+  distanceMiles?: number;
+  estimatedMinutes?: number;
+  confidenceScore?: number;
+  storeName?: string | null;
+} = {}) => ({
   payout: 10,
   distanceMiles: 3,
   estimatedMinutes: 25,
   storeName: "McDonald's",
   items: [],
-  platform: "uber_eats",
+  platform: 'uber_eats' as const,
   confidenceScore: 0.95,
   ...overrides,
 });
 
-Deno.test("accept: strong offer $25 / 2mi / 15min", () => {
-  const decision = decideOffer(baseOffer({ payout: 25, distanceMiles: 2, estimatedMinutes: 15 }));
-  assertEquals(decision.recommendation, "accept");
-  assertAlmostEquals(decision.effectiveHourlyRate, 100, 1);
-  assertEquals(decision.confidence, "high");
+// ── ACCEPT cases ──────────────────────────────────────────────
+
+Deno.test('accept: strong offer $25 / 2mi / 15min → $100/hr', () => {
+  const d = decideOffer(base({ payout: 25, distanceMiles: 2, estimatedMinutes: 15 }));
+  assertEquals(d.recommendation, 'accept');
+  assertAlmostEquals(d.effectiveHourlyRate, 100, 0.1);
+  assertEquals(d.confidence, 'high');
 });
 
-Deno.test("accept: exactly at threshold $18/hr", () => {
-  // $9 in 30 min = $18/hr
-  const decision = decideOffer(baseOffer({ payout: 9, distanceMiles: 2, estimatedMinutes: 30 }));
-  assertEquals(decision.recommendation, "accept");
-  assertAlmostEquals(decision.effectiveHourlyRate, 18, 0.1);
+Deno.test('accept: exactly at $18/hr threshold ($9 / 30min)', () => {
+  const d = decideOffer(base({ payout: 9, estimatedMinutes: 30 }));
+  assertEquals(d.recommendation, 'accept');
+  assertAlmostEquals(d.effectiveHourlyRate, 18, 0.1);
 });
 
-Deno.test("decline: bad offer $5 / 8mi / 30min", () => {
-  const decision = decideOffer(baseOffer({ payout: 5, distanceMiles: 8, estimatedMinutes: 30 }));
-  assertEquals(decision.recommendation, "decline");
-  assertAlmostEquals(decision.effectiveHourlyRate, 10, 0.1);
+Deno.test('accept: store name appears in reasoning', () => {
+  const d = decideOffer(base({ payout: 20, estimatedMinutes: 20, storeName: 'Shake Shack' }));
+  assertEquals(d.recommendation, 'accept');
+  const hasStoreName = d.reasoning.some(r => r.includes('Shake Shack'));
+  assertEquals(hasStoreName, true);
 });
 
-Deno.test("decline: long distance override — 10mi + $6", () => {
-  // Rate might be borderline but distance override kicks in
-  const decision = decideOffer(baseOffer({ payout: 6, distanceMiles: 10, estimatedMinutes: 20 }));
-  assertEquals(decision.recommendation, "decline");
-  assertEquals(decision.reasoning.some(r => r.includes("Long distance")), true);
+// ── DECLINE cases ─────────────────────────────────────────────
+
+Deno.test('decline: low rate $5 / 8mi / 30min → $10/hr', () => {
+  const d = decideOffer(base({ payout: 5, distanceMiles: 8, estimatedMinutes: 30 }));
+  assertEquals(d.recommendation, 'decline');
+  assertAlmostEquals(d.effectiveHourlyRate, 10, 0.1);
 });
 
-Deno.test("conditional: borderline $15/hr", () => {
-  // $7.50 in 30min = $15/hr
-  const decision = decideOffer(baseOffer({ payout: 7.5, distanceMiles: 3, estimatedMinutes: 30 }));
-  assertEquals(decision.recommendation, "conditional");
-  assertAlmostEquals(decision.effectiveHourlyRate, 15, 0.1);
+Deno.test('decline: long-haul override — 10mi + $6 payout', () => {
+  const d = decideOffer(base({ payout: 6, distanceMiles: 10, estimatedMinutes: 20 }));
+  assertEquals(d.recommendation, 'decline');
+  const hasDistanceReason = d.reasoning.some(r => r.includes('haul') || r.includes('Long'));
+  assertEquals(hasDistanceReason, true);
 });
 
-Deno.test("conditional: small payout < $5 overrides accept", () => {
-  // $4 in 10min = $24/hr — good rate but small payout
-  const decision = decideOffer(baseOffer({ payout: 4, distanceMiles: 1, estimatedMinutes: 10 }));
-  assertEquals(decision.recommendation, "conditional");
-  assertEquals(decision.reasoning.some(r => r.includes("Small payout")), true);
+Deno.test('decline: tiny payout < $5 triggers decline', () => {
+  const d = decideOffer(base({ payout: 3, distanceMiles: 1, estimatedMinutes: 20 }));
+  assertEquals(d.recommendation, 'decline');
+  const hasTinyReason = d.reasoning.some(r => r.includes('$5'));
+  assertEquals(hasTinyReason, true);
 });
 
-Deno.test("confidence: low when confidenceScore < 0.6", () => {
-  const decision = decideOffer(baseOffer({ confidenceScore: 0.4 }));
-  assertEquals(decision.confidence, "low");
-  assertEquals(decision.reasoning.some(r => r.includes("unclear")), true);
+// ── CONDITIONAL cases ─────────────────────────────────────────
+
+Deno.test('conditional: borderline $15/hr ($7.50 / 30min)', () => {
+  const d = decideOffer(base({ payout: 7.5, estimatedMinutes: 30 }));
+  assertEquals(d.recommendation, 'conditional');
+  assertAlmostEquals(d.effectiveHourlyRate, 15, 0.1);
 });
 
-Deno.test("confidence: medium when confidenceScore 0.6–0.89", () => {
-  const decision = decideOffer(baseOffer({ confidenceScore: 0.75 }));
-  assertEquals(decision.confidence, "medium");
+Deno.test('conditional: short distance improves conditional reasoning', () => {
+  const d = decideOffer(base({ payout: 7, distanceMiles: 1.5, estimatedMinutes: 28 }));
+  assertEquals(d.recommendation, 'conditional');
+  const hasShortDist = d.reasoning.some(r => r.includes('Short distance') || r.includes('mi'));
+  assertEquals(hasShortDist, true);
 });
 
-Deno.test("edge: zero duration returns 0 hourly rate", () => {
-  const decision = decideOffer(baseOffer({ payout: 10, estimatedMinutes: 0 }));
-  assertEquals(decision.effectiveHourlyRate, 0);
-  assertEquals(decision.recommendation, "decline");
+// ── CONFIDENCE cases ──────────────────────────────────────────
+
+Deno.test('confidence: high when confidenceScore >= 0.9', () => {
+  const d = decideOffer(base({ confidenceScore: 0.95 }));
+  assertEquals(d.confidence, 'high');
 });
 
-Deno.test("edge: DoorDash platform field preserved", () => {
-  const offer = baseOffer({ platform: "doordash", payout: 20, estimatedMinutes: 20 });
-  const decision = decideOffer(offer);
-  assertEquals(decision.recommendation, "accept");
+Deno.test('confidence: medium when confidenceScore 0.6–0.89', () => {
+  const d = decideOffer(base({ confidenceScore: 0.75 }));
+  assertEquals(d.confidence, 'medium');
+});
+
+Deno.test('confidence: low when confidenceScore < 0.6', () => {
+  const d = decideOffer(base({ confidenceScore: 0.4 }));
+  assertEquals(d.confidence, 'low');
+  const hasWarning = d.reasoning.some(r => r.includes('confidence') || r.includes('⚠'));
+  assertEquals(hasWarning, true);
+});
+
+// ── EDGE CASES ────────────────────────────────────────────────
+
+Deno.test('edge: zero estimatedMinutes → conditional with 0 rate', () => {
+  const d = decideOffer(base({ payout: 10, estimatedMinutes: 0 }));
+  assertEquals(d.recommendation, 'conditional');
+  assertEquals(d.effectiveHourlyRate, 0);
+  assertEquals(d.confidence, 'low');
+});
+
+Deno.test('edge: targetHourlyRate override raises accept threshold', () => {
+  // At default $18/hr threshold, $9/30min = exactly accept
+  // With $25/hr target, it should be conditional
+  const d = decideOffer(base({ payout: 9, estimatedMinutes: 30 }), 25);
+  assertEquals(d.recommendation, 'conditional');
+});
+
+Deno.test('edge: targetHourlyRate override lowers threshold', () => {
+  // $7/30min = $14/hr, normally conditional; with $12/hr target → accept
+  const d = decideOffer(base({ payout: 7, estimatedMinutes: 30 }), 12);
+  assertEquals(d.recommendation, 'accept');
+});
+
+Deno.test('edge: all PLATFORM_OPTIONS are accepted by the type', () => {
+  // Verifies the type contract — all platforms flow through without error
+  for (const platform of ['uber_eats', 'doordash', 'grubhub', 'instacart'] as const) {
+    const d = decideOffer({ ...base({ payout: 20, estimatedMinutes: 20 }), platform });
+    assertEquals(d.recommendation, 'accept');
+  }
 });
