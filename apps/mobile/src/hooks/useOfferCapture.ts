@@ -17,6 +17,7 @@ export interface UseOfferCaptureState {
   status: CaptureStatus;
   result: ParseOfferResult | null;
   analyzeOffer: (platform: DeliveryPlatform, options?: { targetHourlyRate?: number }) => Promise<void>;
+  analyzeFromBase64: (base64: string, platform: DeliveryPlatform, options?: { targetHourlyRate?: number }) => Promise<void>;
   reset: () => void;
 }
 
@@ -158,10 +159,63 @@ export function useOfferCapture(): UseOfferCaptureState {
     [safeSetStatus, safeSetResult],
   );
 
+  const analyzeFromBase64 = useCallback(
+    async (base64: string, platform: DeliveryPlatform, options?: { targetHourlyRate?: number }) => {
+      if (!isMountedRef.current) return;
+      safeSetStatus('parsing');
+      safeSetResult(null);
+
+      let parseResult: ParseOfferResult;
+      try {
+        const timeoutPromise = new Promise<ParseOfferResult>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), PARSE_TIMEOUT_MS)
+        );
+        parseResult = await Promise.race([
+          parseOffer(base64, platform, {
+            targetHourlyRate: options?.targetHourlyRate,
+            retryOnNetworkError: true,
+          }),
+          timeoutPromise,
+        ]);
+      } catch (err) {
+        if (!isMountedRef.current) return;
+        const isTimeout = err instanceof Error && err.message === 'timeout';
+        safeSetStatus('error');
+        safeSetResult({ decision: null, error: 'network_error', latencyMs: PARSE_TIMEOUT_MS });
+        Alert.alert(
+          isTimeout ? 'Request Timed Out' : 'Connection Error',
+          isTimeout
+            ? 'Analysis took too long. Please check your connection and try again.'
+            : 'Could not reach the analysis server. Check your connection and try again.',
+        );
+        return;
+      }
+
+      if (!isMountedRef.current) return;
+      safeSetResult(parseResult);
+
+      if (parseResult.error) {
+        safeSetStatus('error');
+        const errorMessages: Record<string, string> = {
+          network_error: 'Connection error — please try again.',
+          parse_failed: 'Could not read the captured image. Try again with better lighting.',
+          rate_limited: 'Too many requests — please wait a moment and try again.',
+          image_too_large: 'Image is too large. Please try again.',
+          permission_denied: 'Authentication error — please sign out and back in.',
+          not_configured: 'Service not available right now. Please try later.',
+        };
+        Alert.alert('Analysis Failed', errorMessages[parseResult.error] ?? 'Something went wrong. Please try again.');
+      } else {
+        safeSetStatus('done');
+      }
+    },
+    [safeSetStatus, safeSetResult],
+  );
+
   const reset = useCallback(() => {
     safeSetStatus('idle');
     safeSetResult(null);
   }, [safeSetStatus, safeSetResult]);
 
-  return { status, result, analyzeOffer, reset };
+  return { status, result, analyzeOffer, analyzeFromBase64, reset };
 }

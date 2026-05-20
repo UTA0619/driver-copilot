@@ -52,6 +52,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      'expo-camera',
+      {
+        cameraPermission: 'Driver Copilot uses the camera to capture offer screenshots directly — no app switching needed.',
+        microphonePermission: false,
+        recordAudioAndroid: false,
+      },
+    ],
+    [
       'expo-location',
       {
         locationAlwaysAndWhenInUsePermission:

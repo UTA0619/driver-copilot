@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { hapticLight } from '@/lib/haptics';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -32,6 +33,9 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      screenListeners={{
+        tabPress: () => hapticLight(),
+      }}
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
