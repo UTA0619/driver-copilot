@@ -20,7 +20,9 @@ import { capture } from '@/lib/analytics';
 import { captureError } from '@/lib/sentry';
 import { hapticMedium, hapticSuccess } from '@/lib/haptics';
 import { SkeletonCard, SkeletonRow } from '@/components/SkeletonCard';
-import type { Delivery, EarningsPeriod, DeliveryPlatform } from '@drivercopilot/types';
+import { AchievementToast } from '@/components/AchievementToast';
+import { updateStreak } from '@/services/gamificationService';
+import type { Delivery, EarningsPeriod, DeliveryPlatform, Achievement } from '@drivercopilot/types';
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -86,6 +88,7 @@ export default function EarningsScreen() {
   const [loading, setLoading] = useState(true);
   const [showLogModal, setShowLogModal] = useState(false);
   const [durationPrefill, setDurationPrefill] = useState('');
+  const [pendingAchievement, setPendingAchievement] = useState<Achievement | null>(null);
 
   // Delivery timer
   const [timerStart, setTimerStart] = useState<Date | null>(null);
@@ -154,6 +157,25 @@ export default function EarningsScreen() {
 
   useEffect(() => { fetchDeliveries(); }, [fetchDeliveries]);
 
+  const handleDeliverySaved = useCallback(async () => {
+    setShowLogModal(false);
+    setDurationPrefill('');
+    fetchDeliveries();
+    if (user) {
+      const { streakExtended } = await updateStreak(user.id, 15);
+      if (streakExtended) {
+        setPendingAchievement({
+          key: 'first_delivery' as const,
+          title: 'Streak Extended! 🔥',
+          description: 'Great work keeping your streak going!',
+          icon: '🔥',
+          xpReward: 15,
+          earnedAt: new Date().toISOString(),
+        });
+      }
+    }
+  }, [user, fetchDeliveries]);
+
   const summary = useMemo(() => calcSummary(deliveries), [deliveries]);
 
   const rateColor =
@@ -162,6 +184,7 @@ export default function EarningsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <AchievementToast achievement={pendingAchievement} onDismiss={() => setPendingAchievement(null)} />
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Earnings</Text>
@@ -272,7 +295,7 @@ export default function EarningsScreen() {
       <LogDeliveryModal
         visible={showLogModal}
         onClose={() => { setShowLogModal(false); setDurationPrefill(''); }}
-        onSaved={() => { setShowLogModal(false); setDurationPrefill(''); fetchDeliveries(); }}
+        onSaved={handleDeliverySaved}
         userId={user?.id ?? ''}
         durationDefault={durationPrefill}
       />

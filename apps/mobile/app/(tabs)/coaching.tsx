@@ -14,7 +14,9 @@ import { useAuth } from '@/context/AuthContext';
 import { capture } from '@/lib/analytics';
 import { captureError } from '@/lib/sentry';
 import { SkeletonCard } from '@/components/SkeletonCard';
-import type { CoachingInsight, InsightType } from '@drivercopilot/types';
+import { getEarnedAchievements } from '@/services/gamificationService';
+import { ACHIEVEMENTS } from '@/lib/achievements';
+import type { CoachingInsight, InsightType, Achievement } from '@drivercopilot/types';
 
 // ── Config ─────────────────────────────────────────────────────
 
@@ -36,12 +38,13 @@ export default function CoachingScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [earnedAchievements, setEarnedAchievements] = useState<Achievement[]>([]);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
 
-    // Fetch insights and delivery count in parallel
-    const [insightsResult, countResult] = await Promise.all([
+    // Fetch insights, delivery count, and achievements in parallel
+    const [insightsResult, countResult, earned] = await Promise.all([
       supabase
         .from('coaching_insights')
         .select('*')
@@ -52,7 +55,9 @@ export default function CoachingScreen() {
         .from('deliveries')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', user.id),
+      getEarnedAchievements(user.id),
     ]);
+    setEarnedAchievements(earned);
 
     if (insightsResult.error) {
       captureError(new Error(insightsResult.error.message), { source: 'CoachingScreen.fetch' });
@@ -96,6 +101,9 @@ export default function CoachingScreen() {
   const needsMoreDeliveries =
     !loading && deliveryCount !== null && deliveryCount < MIN_DELIVERIES_FOR_INSIGHT;
 
+  const earnedKeys = new Set(earnedAchievements.map(a => a.key));
+  const lockedAchievements = Object.values(ACHIEVEMENTS).filter(a => !earnedKeys.has(a.key));
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -115,6 +123,27 @@ export default function CoachingScreen() {
           />
         }
       >
+        {/* Achievements strip */}
+        {!loading && earnedAchievements.length > 0 && (
+          <View style={styles.achievementsSection}>
+            <Text style={styles.achievementsTitle}>Your Achievements</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achievementsRow}>
+              {earnedAchievements.map(a => (
+                <View key={a.key} style={styles.achievementBadge}>
+                  <Text style={styles.achievementIcon}>{a.icon}</Text>
+                  <Text style={styles.achievementName}>{a.title}</Text>
+                </View>
+              ))}
+              {lockedAchievements.slice(0, 3).map(a => (
+                <View key={a.key} style={[styles.achievementBadge, styles.achievementBadgeLocked]}>
+                  <Text style={[styles.achievementIcon, styles.achievementIconLocked]}>🔒</Text>
+                  <Text style={[styles.achievementName, styles.achievementNameLocked]}>{a.title}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Progress bar — shows delivery count toward unlocking insights */}
         {!loading && deliveryCount !== null && (
           <DeliveryProgress count={deliveryCount} target={MIN_DELIVERIES_FOR_INSIGHT} />
@@ -293,4 +322,14 @@ const styles = StyleSheet.create({
   insightBody: { marginTop: 12 },
   insightDivider: { height: 1, backgroundColor: '#334155', marginBottom: 12 },
   insightBodyText: { fontSize: 14, color: '#94a3b8', lineHeight: 22 },
+
+  achievementsSection: { marginBottom: 20 },
+  achievementsTitle: { fontSize: 13, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
+  achievementsRow: { gap: 10, paddingRight: 20 },
+  achievementBadge: { alignItems: 'center', gap: 6, backgroundColor: '#1e293b', borderRadius: 14, padding: 12, minWidth: 80, borderWidth: 1, borderColor: '#f59e0b22' },
+  achievementBadgeLocked: { borderColor: '#334155', opacity: 0.5 },
+  achievementIcon: { fontSize: 28 },
+  achievementIconLocked: { opacity: 0.3 },
+  achievementName: { fontSize: 10, color: '#94a3b8', fontWeight: '600', textAlign: 'center' },
+  achievementNameLocked: { color: '#334155' },
 });

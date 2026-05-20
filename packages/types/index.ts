@@ -155,6 +155,45 @@ export interface Entitlements {
   weeklyCoachingEnabled: boolean;
 }
 
+// ── Gamification ──────────────────────────────────────────────
+
+export interface UserGoal {
+  dailyTarget: number;
+  weeklyTarget: number;
+}
+
+export interface UserStreak {
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: string | null;
+  totalXp: number;
+  level: number;
+}
+
+export type AchievementKey =
+  | 'first_delivery'
+  | 'first_analysis'
+  | 'ten_deliveries'
+  | 'fifty_deliveries'
+  | 'first_hundred_day'       // $100+ in one day
+  | 'seven_day_streak'
+  | 'thirty_day_streak'
+  | 'first_accept'            // took an ACCEPT recommendation
+  | 'rate_chaser'             // achieved $25+/hr on an offer
+  | 'consistent_earner'       // hit daily goal 3 days in a row
+  | 'early_bird'              // logged delivery before 8am
+  | 'night_owl'               // logged delivery after 10pm
+  | 'platform_explorer';      // used all 4 platforms
+
+export interface Achievement {
+  key: AchievementKey;
+  title: string;
+  description: string;
+  icon: string;   // emoji
+  xpReward: number;
+  earnedAt?: string;
+}
+
 // ─── Analytics Event Names (type-safe) ───────────────────────
 
 export type AnalyticsEvent =
