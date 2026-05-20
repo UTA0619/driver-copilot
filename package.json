@@ -7,7 +7,9 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
-    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "web:dev": "pnpm --filter @drivercopilot/web dev",
+    "web:build": "pnpm --filter @drivercopilot/web build"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

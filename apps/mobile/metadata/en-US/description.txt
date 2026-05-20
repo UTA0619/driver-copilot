@@ -1,0 +1,35 @@
+Driver Copilot — AI Offer Analyzer for Gig Drivers
+
+Stop guessing which delivery offers to accept. Driver Copilot uses AI to analyze every offer in under 3 seconds and tells you exactly what to do: ACCEPT, DECLINE, or CONSIDER.
+
+🎯 INSTANT OFFER ANALYSIS
+Point your camera at any offer screen — no screenshots needed. Our AI calculates the effective hourly rate, checks distance, and gives you a clear recommendation immediately.
+
+💰 MAXIMIZE YOUR EARNINGS
+See exactly how much you're earning per hour, track your daily goal progress, and get weekly AI coaching insights based on your real delivery data.
+
+🔥 STAY MOTIVATED
+• Daily earnings goal with visual progress bar
+• Streak tracking — keep your delivery streak alive
+• XP & level system — earn achievements as you grow
+• Weekly coaching tips personalized to your patterns
+
+📍 ZONE HEATMAP
+Discover which areas in your city pay the most at any time of day. Visualize high-value zones on an interactive map to position yourself strategically.
+
+📊 EARNINGS DASHBOARD
+• Track earnings by today, this week, or this month
+• Built-in delivery timer — start and stop with one tap
+• Automatic hourly rate calculation
+• Platform breakdown (Uber Eats, DoorDash, Grubhub, Instacart)
+
+Works with all major platforms:
+• Uber Eats
+• DoorDash
+• Grubhub
+• Instacart
+
+PRIVACY FIRST
+Your offer screenshots are processed securely and never stored. We only retain the extracted numbers (payout, distance, time) — never the actual image.
+
+Start your free trial today and join thousands of drivers earning smarter, not harder.

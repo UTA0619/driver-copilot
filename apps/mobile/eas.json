@@ -33,19 +33,21 @@
         "EXPO_PUBLIC_APP_ENV": "production"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image": "latest"
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "image": "latest"
       }
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "REPLACE_WITH_APPLE_ID",
-        "ascAppId": "REPLACE_WITH_ASC_APP_ID",
-        "appleTeamId": "REPLACE_WITH_TEAM_ID"
+        "appleId": "$APPLE_ID",
+        "ascAppId": "$ASC_APP_ID",
+        "appleTeamId": "$APPLE_TEAM_ID"
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
