@@ -162,30 +162,33 @@ export default function MapScreen() {
             <ActivityIndicator color="#3b82f6" size="large" />
             <Text style={styles.loadingText}>Getting your location…</Text>
           </View>
-        ) : (
-          <MapboxGL.default.MapView style={styles.map} styleURL={MapboxGL.default.StyleURL.Dark}>
-            <MapboxGL.default.Camera
-              centerCoordinate={[location.longitude, location.latitude]}
-              zoomLevel={12}
-              animationDuration={500}
-            />
-            {/* User location dot */}
-            <MapboxGL.default.UserLocation visible />
-
-            {/* Zone circles */}
-            {zones.map(zone => (
-              <MapboxGL.default.PointAnnotation
-                key={zone.h3Index}
-                id={zone.h3Index}
-                coordinate={[location.longitude + 0, location.latitude + 0]} // h3 → coords would need h3-js
-              >
-                <View style={[styles.zoneMarker, { backgroundColor: payoutColor(zone.avgPayout) + 'cc' }]}>
-                  <Text style={styles.zoneMarkerText}>${zone.avgPayout.toFixed(0)}</Text>
-                </View>
-              </MapboxGL.default.PointAnnotation>
-            ))}
-          </MapboxGL.default.MapView>
-        )}
+        ) : MapboxGL ? (
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          (() => {
+            const GL = MapboxGL!;
+            return (
+              <GL.default.MapView style={styles.map} styleURL={GL.default.StyleURL.Dark}>
+                <GL.default.Camera
+                  centerCoordinate={[location!.longitude, location!.latitude]}
+                  zoomLevel={12}
+                  animationDuration={500}
+                />
+                <GL.default.UserLocation visible />
+                {zones.map(zone => (
+                  <GL.default.PointAnnotation
+                    key={zone.h3Index}
+                    id={zone.h3Index}
+                    coordinate={[location!.longitude, location!.latitude]}
+                  >
+                    <View style={[styles.zoneMarker, { backgroundColor: payoutColor(zone.avgPayout) + 'cc' }]}>
+                      <Text style={styles.zoneMarkerText}>${zone.avgPayout.toFixed(0)}</Text>
+                    </View>
+                  </GL.default.PointAnnotation>
+                ))}
+              </GL.default.MapView>
+            );
+          })()
+        ) : null}
       </View>
 
       {/* Zone list — top zones ranked by avg payout */}

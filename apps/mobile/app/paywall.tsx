@@ -58,7 +58,7 @@ export default function PaywallScreen() {
     setLoading(true);
     try {
       const offerings = await Purchases.getOfferings();
-      const pkg = offerings.current?.availablePackages.find(p => p.identifier === productId);
+      const pkg = offerings.current?.availablePackages.find((p: { identifier: string }) => p.identifier === productId);
       if (!pkg) {
         Alert.alert('Error', 'Package not found. Please try again.');
         return;

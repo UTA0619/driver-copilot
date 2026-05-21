@@ -211,4 +211,11 @@ export type AnalyticsEvent =
   | 'subscription_started'
   | 'subscription_cancelled'
   | 'coaching_insight_viewed'
-  | 'map_heatmap_viewed';
+  | 'map_heatmap_viewed'
+  | 'offer_feedback_submitted'
+  | 'achievement_unlocked'
+  | 'paywall_subscribe_tapped'
+  | 'paywall_subscribed'
+  | 'paywall_cancelled'
+  | 'paywall_restored'
+  | 'password_reset_completed';
