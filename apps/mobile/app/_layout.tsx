@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { SubscriptionProvider } from '@/context/SubscriptionContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { initSentry } from '@/lib/sentry';
@@ -140,7 +141,9 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
         <AuthProvider>
-          <RootLayoutNav />
+          <SubscriptionProvider>
+            <RootLayoutNav />
+          </SubscriptionProvider>
         </AuthProvider>
       </ErrorBoundary>
     </QueryClientProvider>

@@ -16,6 +16,7 @@ import { captureError } from '@/lib/sentry';
 import { SkeletonCard } from '@/components/SkeletonCard';
 import { getEarnedAchievements } from '@/services/gamificationService';
 import { ACHIEVEMENTS } from '@/lib/achievements';
+import { ProGate } from '@/components/ProGate';
 import type { CoachingInsight, InsightType, Achievement } from '@drivercopilot/types';
 
 // ── Config ─────────────────────────────────────────────────────
@@ -112,6 +113,11 @@ export default function CoachingScreen() {
         <Text style={styles.subtitle}>Personalized tips to earn more</Text>
       </View>
 
+      <ProGate
+        feature="Weekly Coaching"
+        icon="bulb-outline"
+        benefit="Get AI-powered weekly insights personalized to your delivery history to maximize hourly earnings."
+      >
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
@@ -202,6 +208,7 @@ export default function CoachingScreen() {
           </View>
         )}
       </ScrollView>
+      </ProGate>
     </SafeAreaView>
   );
 }

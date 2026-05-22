@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { capture } from '@/lib/analytics';
 import { captureError } from '@/lib/sentry';
 import { SkeletonCard } from '@/components/SkeletonCard';
+import { ProGate } from '@/components/ProGate';
 import type { ZonePerformance, TimeOfDay } from '@drivercopilot/types';
 
 // Mapbox is loaded lazily so missing token doesn't crash the app on startup
@@ -145,6 +146,11 @@ export default function MapScreen() {
         ))}
       </View>
 
+      <ProGate
+        feature="Zone Heatmap"
+        icon="map-outline"
+        benefit="See live earnings heatmaps for every zone near you — know where to drive before you go."
+      >
       {/* Map area */}
       <View style={styles.mapContainer}>
         {noNativeModule || noMapboxToken ? (
@@ -220,6 +226,7 @@ export default function MapScreen() {
           ))
         )}
       </View>
+      </ProGate>
     </SafeAreaView>
   );
 }

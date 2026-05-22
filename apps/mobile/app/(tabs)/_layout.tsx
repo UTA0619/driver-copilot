@@ -9,10 +9,11 @@ type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 // Explicit icon map prevents silent failures when an icon name has no -outline variant
 const TAB_ICONS: Record<string, { active: IconName; inactive: IconName }> = {
-  flash:    { active: 'flash',    inactive: 'flash-outline' },
-  wallet:   { active: 'wallet',   inactive: 'wallet-outline' },
-  map:      { active: 'map',      inactive: 'map-outline' },
-  bulb:     { active: 'bulb',     inactive: 'bulb-outline' },
+  flash:    { active: 'flash',          inactive: 'flash-outline' },
+  wallet:   { active: 'wallet',         inactive: 'wallet-outline' },
+  map:      { active: 'map',            inactive: 'map-outline' },
+  bulb:     { active: 'bulb',           inactive: 'bulb-outline' },
+  settings: { active: 'settings',       inactive: 'settings-outline' },
 };
 
 function TabIcon({ iconKey, focused }: { iconKey: string; focused: boolean }) {
@@ -81,6 +82,14 @@ export default function TabsLayout() {
           title: 'Coaching',
           tabBarAccessibilityLabel: 'Coaching tab',
           tabBarIcon: ({ focused }) => <TabIcon iconKey="bulb" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarAccessibilityLabel: 'Settings tab',
+          tabBarIcon: ({ focused }) => <TabIcon iconKey="settings" focused={focused} />,
         }}
       />
     </Tabs>

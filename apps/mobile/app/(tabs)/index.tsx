@@ -23,6 +23,7 @@ import { unlockAchievement } from '@/services/gamificationService';
 import { GoalProgressBar } from '@/components/GoalProgressBar';
 import { StreakDisplay } from '@/components/StreakDisplay';
 import { AchievementToast } from '@/components/AchievementToast';
+import { useSubscriptionContext } from '@/context/SubscriptionContext';
 import type { OfferDecision, DeliveryPlatform, Achievement } from '@drivercopilot/types';
 
 // ── Constants ─────────────────────────────────────────────────
@@ -47,6 +48,12 @@ const REC_CONFIG = {
 };
 
 const RECENT_STORAGE_KEY = 'dc_recent_analyses';
+const FREE_MONTHLY_LIMIT = 10;
+
+function monthlyCountKey(): string {
+  const d = new Date();
+  return `dc_monthly_analyses_${d.getFullYear()}_${d.getMonth()}`;
+}
 
 interface RecentAnalysis {
   recommendation: 'accept' | 'decline' | 'conditional';
@@ -73,16 +80,30 @@ export default function OffersScreen() {
   const { user } = useAuth();
   const { status, result, analyzeOffer, analyzeFromBase64, reset } = useOfferCapture();
   const { goal, streak, todayEarnings, todayDeliveries, loading: gamLoading, refresh: refreshGam } = useGamification();
+  const { isPro } = useSubscriptionContext();
   const analyzingRef = useRef(false);
   const [pendingAchievement, setPendingAchievement] = useState<Achievement | null>(null);
   const [recentAnalyses, setRecentAnalyses] = useState<RecentAnalysis[]>([]);
+  const [monthlyCount, setMonthlyCount] = useState(0);
 
-  // Load recent analyses from local storage
+  // Load recent analyses + monthly usage count from local storage
   useEffect(() => {
     AsyncStorage.getItem(RECENT_STORAGE_KEY)
       .then(raw => { if (raw) setRecentAnalyses(JSON.parse(raw)); })
       .catch(() => {});
+    AsyncStorage.getItem(monthlyCountKey())
+      .then(raw => { if (raw) setMonthlyCount(parseInt(raw, 10) || 0); })
+      .catch(() => {});
   }, []);
+
+  const incrementMonthlyCount = useCallback(async () => {
+    const next = monthlyCount + 1;
+    setMonthlyCount(next);
+    await AsyncStorage.setItem(monthlyCountKey(), String(next)).catch(() => {});
+  }, [monthlyCount]);
+
+  const atFreeLimit = !isPro && monthlyCount >= FREE_MONTHLY_LIMIT;
+  const nearFreeLimit = !isPro && monthlyCount >= FREE_MONTHLY_LIMIT - 2 && monthlyCount < FREE_MONTHLY_LIMIT;
 
   // Handle camera-captured image coming back via route params
   useEffect(() => {
@@ -117,10 +138,12 @@ export default function OffersScreen() {
 
   const handleAnalyze = useCallback(async (platform: DeliveryPlatform) => {
     if (analyzingRef.current) return;
+    if (atFreeLimit) { hapticLight(); router.push('/paywall'); return; }
     analyzingRef.current = true;
     hapticLight();
     try {
       await analyzeOffer(platform);
+      await incrementMonthlyCount();
       if (user) {
         const a = await unlockAchievement(user.id, 'first_analysis');
         if (a) setPendingAchievement(a);
@@ -128,12 +151,13 @@ export default function OffersScreen() {
     } finally {
       analyzingRef.current = false;
     }
-  }, [analyzeOffer, user]);
+  }, [analyzeOffer, user, atFreeLimit, incrementMonthlyCount, router]);
 
   const handleCameraOpen = useCallback(() => {
+    if (atFreeLimit) { hapticLight(); router.push('/paywall'); return; }
     hapticLight();
     router.push('/capture');
-  }, [router]);
+  }, [router, atFreeLimit]);
 
   const isLoading = ['picking', 'compressing', 'parsing'].includes(status);
 
@@ -198,9 +222,32 @@ export default function OffersScreen() {
           </View>
         ) : (
           <>
+            {/* Monthly usage banner — free tier warning / limit */}
+            {atFreeLimit ? (
+              <TouchableOpacity
+                style={styles.limitBanner}
+                onPress={() => { hapticLight(); router.push('/paywall'); }}
+                accessibilityRole="button"
+              >
+                <Ionicons name="lock-closed" size={16} color="#f59e0b" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.limitBannerTitle}>Monthly limit reached</Text>
+                  <Text style={styles.limitBannerSub}>10/10 free analyses used · Upgrade for unlimited</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#f59e0b" />
+              </TouchableOpacity>
+            ) : nearFreeLimit ? (
+              <View style={styles.warningBanner}>
+                <Ionicons name="warning-outline" size={15} color="#f59e0b" />
+                <Text style={styles.warningBannerText}>
+                  {FREE_MONTHLY_LIMIT - monthlyCount} free {FREE_MONTHLY_LIMIT - monthlyCount === 1 ? 'analysis' : 'analyses'} left this month
+                </Text>
+              </View>
+            ) : null}
+
             {/* PRIMARY CTA — Camera scan button */}
             <TouchableOpacity
-              style={styles.scanButton}
+              style={[styles.scanButton, atFreeLimit && styles.scanButtonLocked]}
               onPress={handleCameraOpen}
               activeOpacity={0.85}
               accessibilityRole="button"
@@ -449,6 +496,21 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '900', color: '#f8fafc', letterSpacing: -0.5 },
   proBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1c1000', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#f59e0b' },
   proBtnText: { fontSize: 13, fontWeight: '700', color: '#f59e0b' },
+
+  // Usage limit banners
+  limitBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#1c1000', borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: '#f59e0b',
+  },
+  limitBannerTitle: { fontSize: 14, fontWeight: '700', color: '#f59e0b' },
+  limitBannerSub: { fontSize: 12, color: '#92400e', marginTop: 1 },
+  warningBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#1c1000', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  warningBannerText: { fontSize: 13, color: '#d97706', fontWeight: '500' },
+  scanButtonLocked: { backgroundColor: '#334155', shadowOpacity: 0 },
 
   // Primary scan button
   scanButton: {
