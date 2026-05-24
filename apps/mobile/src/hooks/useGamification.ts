@@ -48,7 +48,7 @@ export function useGamification(): GamificationState {
       setGoal(g);
       setStreak(s);
       if (!deliveryResult.error && deliveryResult.data) {
-        const total = deliveryResult.data.reduce((s, d) => s + Number(d.payout) + Number(d.tip), 0);
+        const total = deliveryResult.data.reduce((acc, d) => acc + Number(d.payout) + Number(d.tip), 0);
         setTodayEarnings(total);
         setTodayDeliveries(deliveryResult.data.length);
       }

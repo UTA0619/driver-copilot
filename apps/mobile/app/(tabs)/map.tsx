@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { cellToLatLng } from 'h3-js';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import * as Location from 'expo-location';
@@ -180,17 +181,20 @@ export default function MapScreen() {
                   animationDuration={500}
                 />
                 <GL.default.UserLocation visible />
-                {zones.map(zone => (
+                {zones.map(zone => {
+                  const [zoneLat, zoneLng] = cellToLatLng(zone.h3Index);
+                  return (
                   <GL.default.PointAnnotation
                     key={zone.h3Index}
                     id={zone.h3Index}
-                    coordinate={[location!.longitude, location!.latitude]}
+                    coordinate={[zoneLng, zoneLat]}
                   >
                     <View style={[styles.zoneMarker, { backgroundColor: payoutColor(zone.avgPayout) + 'cc' }]}>
                       <Text style={styles.zoneMarkerText}>${zone.avgPayout.toFixed(0)}</Text>
                     </View>
                   </GL.default.PointAnnotation>
-                ))}
+                  );
+                })}
               </GL.default.MapView>
             );
           })()

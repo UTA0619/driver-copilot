@@ -84,6 +84,7 @@ const styles = StyleSheet.create({
   loadingContainer: { padding: 20 },
 
   gate: {
+    flex: 1,
     margin: 20,
     backgroundColor: '#1e293b',
     borderRadius: 24,

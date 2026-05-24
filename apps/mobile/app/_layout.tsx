@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { SubscriptionProvider } from '@/context/SubscriptionContext';
@@ -10,6 +13,29 @@ import { LoadingScreen } from '@/components/LoadingScreen';
 import { initSentry } from '@/lib/sentry';
 import { initPostHog, capture } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
+
+// ─── Push notification handler ────────────────────────────────
+// Must be set before any notification is received (including cold-start).
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+// ─── RevenueCat initialisation ────────────────────────────────
+// Lazy-required so Expo Go (which lacks the native module) doesn't crash.
+function initRevenueCat(): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let Purchases: any = null;
+  try { Purchases = require('react-native-purchases').default; } catch { return; }
+  const iosKey = Constants.expoConfig?.extra?.revenueCatIosKey as string | undefined;
+  const androidKey = Constants.expoConfig?.extra?.revenueCatAndroidKey as string | undefined;
+  const apiKey = Platform.OS === 'ios' ? iosKey : androidKey;
+  if (!apiKey) return;
+  try { Purchases.configure({ apiKey }); } catch { /* native module may not be linked in dev */ }
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,10 +48,11 @@ const queryClient = new QueryClient({
   },
 });
 
-// Initialize crash monitoring and analytics synchronously at startup.
-// Both are no-ops in development if keys are not set.
+// Initialize crash monitoring, analytics, and RevenueCat at startup.
+// All are no-ops in development if keys are not set.
 try { initSentry(); } catch { /* never crash the app over analytics init */ }
 try { initPostHog(); } catch { /* never crash the app over analytics init */ }
+try { initRevenueCat(); } catch { /* never crash the app over purchase init */ }
 
 // ─── Root Nav ─────────────────────────────────────────────────
 

@@ -218,7 +218,7 @@ function StepCity({
     <ScrollView contentContainerStyle={styles.step}>
       <Text style={styles.stepLabel}>STEP 2 OF 3</Text>
       <Text style={styles.stepTitle}>Where do you mainly drive?</Text>
-      <Text style={styles.stepSub}>We&apos;ll show you the best zones for your city.</Text>
+      <Text style={styles.stepSub}>We'll show you the best zones for your city.</Text>
 
       <View style={styles.cityGrid}>
         {CITIES.map(c => (
